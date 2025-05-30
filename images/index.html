@@ -1,0 +1,76 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>DSP Edge Detection</title>
+  <style>
+    canvas { margin: 10px; border: 1px solid black; }
+  </style>
+</head>
+<body>
+  <h1>DSP-Based Edge Detection</h1>
+  <button onclick="loadImage('checkerboard')">Checkerboard</button>
+  <button onclick="loadImage('sine')">Sine Wave</button>
+  <button onclick="loadImage('noise')">Noise</button>
+  <div>
+    <canvas id="original"></canvas>
+    <canvas id="grayscale"></canvas>
+    <canvas id="edges"></canvas>
+  </div>
+
+  <script>
+    async function loadImage(type) {
+      const url = `/generate/${type}`;
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const img = new Image();
+      img.src = URL.createObjectURL(blob);
+      img.onload = () => processImage(img);
+    }
+
+    function processImage(img) {
+      const size = 256;
+      const orig = document.getElementById('original');
+      const gray = document.getElementById('grayscale');
+      const edge = document.getElementById('edges');
+      [orig, gray, edge].forEach(c => { c.width = c.height = size; });
+
+      const octx = orig.getContext('2d');
+      octx.drawImage(img, 0, 0, size, size);
+
+      const gctx = gray.getContext('2d');
+      const gimg = gctx.createImageData(size, size);
+      const data = octx.getImageData(0, 0, size, size).data;
+
+      for (let i = 0; i < data.length; i += 4) {
+        const avg = (data[i] + data[i+1] + data[i+2]) / 3;
+        gimg.data[i] = gimg.data[i+1] = gimg.data[i+2] = avg;
+        gimg.data[i+3] = 255;
+      }
+      gctx.putImageData(gimg, 0, 0);
+
+      const ectx = edge.getContext('2d');
+      const eimg = ectx.createImageData(size, size);
+      for (let y = 1; y < size - 1; y++) {
+        for (let x = 1; x < size - 1; x++) {
+          const i = (y * size + x) * 4;
+          const gx = (
+            -1 * gimg.data[((y-1)*size + x-1)*4] + 1 * gimg.data[((y-1)*size + x+1)*4] +
+            -2 * gimg.data[((y)*size + x-1)*4]   + 2 * gimg.data[((y)*size + x+1)*4] +
+            -1 * gimg.data[((y+1)*size + x-1)*4] + 1 * gimg.data[((y+1)*size + x+1)*4]
+          );
+          const gy = (
+            -1 * gimg.data[((y-1)*size + x-1)*4] + -2 * gimg.data[((y-1)*size + x)*4] + -1 * gimg.data[((y-1)*size + x+1)*4] +
+             1 * gimg.data[((y+1)*size + x-1)*4] +  2 * gimg.data[((y+1)*size + x)*4] +  1 * gimg.data[((y+1)*size + x+1)*4]
+          );
+          const edgeVal = Math.min(255, Math.sqrt(gx * gx + gy * gy));
+          eimg.data[i] = eimg.data[i+1] = eimg.data[i+2] = edgeVal;
+          eimg.data[i+3] = 255;
+        }
+      }
+      ectx.putImageData(eimg, 0, 0);
+    }
+  </script>
+</body>
+</html>
